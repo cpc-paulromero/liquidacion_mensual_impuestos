@@ -1,6 +1,6 @@
 # Configuración mínima para la CLI de Supabase (supabase link / functions deploy).
 # Ejecuta los comandos desde esta carpeta:  supabase link --project-ref <TU_REF>
-project_id = "sire-contasis"
+project_id = "bninshfcenjsiuyhzyja"
 
 [functions.sire-sync]
 verify_jwt = true

@@ -1,11 +1,7 @@
-// Conexión a Supabase de la versión web (SIRE → Contasis).
-// Supabase → Project Settings → API: copia "Project URL" y la clave "anon / publishable".
-// La clave anon es pública por diseño: la seguridad la dan las reglas RLS de
-// supabase/migrations/*.sql. NUNCA pongas aquí la clave service_role.
-//
-// Mientras estén vacías, la app funciona en MODO LOCAL (como antes): carga manual de
-// archivos y datos en el navegador (IndexedDB), sin sincronización con SUNAT ni nube.
+// Configuración pública del proyecto Supabase "liquidacion_mensual_impuestos".
+// La clave publishable es pública por diseño: la seguridad la dan RLS y la Edge Function.
+// NUNCA pongas aquí service_role ni credenciales SUNAT.
 window.SIRE_CONFIG = {
-  SUPABASE_URL: "",
-  SUPABASE_ANON_KEY: ""
+  SUPABASE_URL: "https://bninshfcenjsiuyhzyja.supabase.co",
+  SUPABASE_ANON_KEY: "sb_publishable_GhI1PUHKWRcfD709OQUBJw_z9txF9Lc"
 };
