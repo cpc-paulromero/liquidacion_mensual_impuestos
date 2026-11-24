@@ -3,7 +3,7 @@
 Aplicación de Paul Romero · Asesoría Empresarial para preparar el **Registro de Compras SIRE → NewContaSis**,
 ahora en versión web con **Supabase** (datos por empresa) y **sincronización directa con el API SIRE de SUNAT**.
 
-Vive en esta carpeta (``) del repositorio, separada de la app de Planillas de la raíz.
+Este repositorio contiene la app completa en su raíz.
 
 ```
 
@@ -50,7 +50,7 @@ La carga manual **no se tocó**: las pestañas *Registro de Compras* y *Registro
 ## 2. Publicar la web
 
 La carpeta es estática. Con GitHub Pages (*Settings → Pages → Deploy from a branch*) queda en
-`https://<usuario>.github.io/<repo>/`. También sirve Netlify, Vercel o Cloudflare Pages
+`https://<usuario>.github.io/liquidacion_mensual_impuestos/`. También sirve Netlify, Vercel o Cloudflare Pages
 apuntando a ``.
 
 ## 3. Uso por empresa
