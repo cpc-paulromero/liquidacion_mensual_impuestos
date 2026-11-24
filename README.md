@@ -6,7 +6,7 @@ ahora en versión web con **Supabase** (datos por empresa) y **sincronización d
 Este repositorio contiene la app completa en su raíz.
 
 ```
-
+liquidacion_mensual_impuestos/
 ├─ index.html                 App completa (la versión local + pestaña «API SIRE (SUNAT)»)
 ├─ config.js                  URL y clave anon de Supabase (vacías = modo local)
 ├─ js/cloud.js                Cliente Supabase por fetch (Auth, REST, Edge Functions)
@@ -51,7 +51,7 @@ La carga manual **no se tocó**: las pestañas *Registro de Compras* y *Registro
 
 La carpeta es estática. Con GitHub Pages (*Settings → Pages → Deploy from a branch*) queda en
 `https://<usuario>.github.io/liquidacion_mensual_impuestos/`. También sirve Netlify, Vercel o Cloudflare Pages
-apuntando a ``.
+apuntando a la raíz del repositorio.
 
 ## 3. Uso por empresa
 
