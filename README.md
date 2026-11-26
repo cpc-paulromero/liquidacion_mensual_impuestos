@@ -1,4 +1,4 @@
-# liquidacion_mensual_impuestos
+# Liquidación mensual de impuestos
 
 **liquidacion_mensual_impuestos** (antes «SIRE → Contasis · versión web multiempresa») es la aplicación de Paul Romero · Asesoría Empresarial para preparar el **Registro de Compras SIRE → NewContaSis**,
 ahora en versión web con **Supabase** (datos por empresa) y **sincronización directa con el API SIRE de SUNAT**.

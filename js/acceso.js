@@ -12,8 +12,11 @@
   body.sin-acceso > *:not(#gate){display:none!important}
   #gate{position:fixed;inset:0;z-index:99999;background:#2C3C63;display:flex;align-items:center;justify-content:center;padding:16px;font-family:inherit}
   #gate .caja{background:#fff;border-radius:12px;border-top:5px solid #C9AA6F;width:100%;max-width:380px;padding:28px 26px;box-shadow:0 12px 40px rgba(0,0,0,.35)}
+  #gate .enc{display:flex;align-items:center;gap:14px;margin-bottom:6px}
+  #gate .enc img{width:56px;height:56px;border-radius:10px;flex:none;display:block}
+  #gate .enc div{display:flex;flex-direction:column;line-height:1.2;min-width:0}
   #gate small{color:#8a6d2f;letter-spacing:.14em;text-transform:uppercase;font-size:11px;font-weight:600}
-  #gate h1{font-size:20px;margin:4px 0 4px;color:#2C3C63}
+  #gate h1{font-size:20px;margin:3px 0 0;color:#2C3C63}
   #gate p{color:#667085;font-size:13px;margin:0 0 16px}
   #gate label{display:block;font-size:12px;color:#667085;margin:10px 0 4px}
   #gate input{width:100%;box-sizing:border-box;padding:10px;border:1px solid #cfd6e2;border-radius:8px;font-size:15px}
@@ -28,8 +31,8 @@
   gate.id = 'gate';
   gate.setAttribute('role', 'dialog');
   gate.innerHTML = `<form class="caja" autocomplete="on">
-    <small>Paul Romero · Asesoría Empresarial</small>
-    <h1>liquidacion_mensual_impuestos</h1>
+    <div class="enc"><img src="img/logo.png" alt="Paul Romero" width="56" height="56">
+      <div><small>Paul Romero · Asesoría Empresarial</small><h1>Liquidación mensual de impuestos</h1></div></div>
     <p>Acceso restringido. Inicia sesión para continuar.</p>
     <label for="g_mail">Correo</label><input id="g_mail" type="email" autocomplete="username" required>
     <label for="g_pw">Contraseña</label><input id="g_pw" type="password" autocomplete="current-password" required minlength="6">
