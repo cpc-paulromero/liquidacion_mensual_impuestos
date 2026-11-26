@@ -14,7 +14,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders, json } from '../_shared/cors.ts';
 import {
   type Credenciales, type Libro, SunatError, consultarTicket, descargarArchivo,
-  obtenerToken, solicitarExportacion, validarLibro, validarPeriodo,
+  obtenerToken, solicitarExportacion, sondear, validarLibro, validarPeriodo,
 } from '../_shared/sunat.ts';
 
 const URL_SB = Deno.env.get('SUPABASE_URL')!;
@@ -116,7 +116,15 @@ Deno.serve(async (req) => {
       if (previos && previos.length) return json({ ok: true, reutilizado: true, ticket: previos[0] });
 
       const { token, diag } = await tokenDe(empresaId);
-      const numTicket = await solicitarExportacion(token, libro, periodo, { diag });
+      let numTicket: string;
+      try {
+        numTicket = await solicitarExportacion(token, libro, periodo, { diag });
+      } catch (e) {
+        if (e instanceof SunatError && e.status === 401) {
+          throw new SunatError(`${e.message} [sondeo: ${await sondear(token, libro, periodo)}]`, 401, 'solicitar');
+        }
+        throw e;
+      }
       const { data: t, error } = await admin.from('lmi_tickets').upsert({
         empresa_id: empresaId, libro, periodo, num_ticket: numTicket, estado: 'solicitado',
         solicitado_por: userId, detalle_error: null,

@@ -260,3 +260,25 @@ export async function descargarArchivo(
   }
   return bytes;
 }
+
+/** Sondeo de diagnóstico tras un 401: prueba otras rutas con el mismo token (solo estados HTTP, sin datos sensibles). */
+export async function sondear(token: string, libro: Libro, periodo: string, o?: Opciones): Promise<string> {
+  const cod = COD_LIBRO[libro];
+  const pruebas: Array<[string, string, boolean]> = [
+    ['raiz', `${API_SIRE}/`, true],
+    ['periodos', `${API_SIRE}${BASE}/rvierce/padron/web/omisos/${cod}/periodos`, true],
+    ['exportacion_sin_token', libro === 'compras'
+      ? `${API_SIRE}${BASE}/rce/propuesta/web/propuesta/${periodo}/exportacioncomprobantepropuesta?codTipoArchivo=0&codOrigenEnvio=2`
+      : `${API_SIRE}${BASE}/rvie/propuesta/web/propuesta/${periodo}/exportapropuesta?codTipoArchivo=0`, false],
+  ];
+  const out: string[] = [];
+  for (const [n, url, conToken] of pruebas) {
+    try {
+      const res = await f(o)(url, { method: 'GET', headers: conToken ? auth(token) : { Accept: 'application/json' }, signal: signal({ ...o, timeoutMs: 15_000 }) });
+      const t = (await res.text()).slice(0, 400);
+      const ti = /<title[^>]*>([^<]{1,60})<\/title>/i.exec(t);
+      out.push(`${n}=${res.status}${ti ? ' «' + ti[1].trim() + '»' : ''}`);
+    } catch (e) { out.push(`${n}=error`); }
+  }
+  return out.join('; ');
+}
