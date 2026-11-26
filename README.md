@@ -93,6 +93,7 @@ Si cierras la página con un ticket pendiente, la lista de tickets permite **Con
 
 La web es pública, pero **solo pueden crear cuenta los correos de la tabla `lmi_acceso_permitido`**.
 Un trigger sobre `auth.users` rechaza cualquier otro registro, incluso si alguien llama a la API de Supabase directamente.
+Con la nube configurada, **toda la app queda detrás de una pantalla de acceso** (`js/acceso.js`): sin sesión no se ve nada más. Esa puerta controla el uso de la interfaz; la seguridad real de los datos está en Supabase (RLS y lista de correos).
 El primer usuario se registra desde la pantalla de login de la app con su correo autorizado y elige su propia contraseña.
 
 Para autorizar otro correo (SQL Editor de Supabase):

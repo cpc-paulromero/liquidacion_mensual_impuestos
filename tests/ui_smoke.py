@@ -127,7 +127,8 @@ with sync_playwright() as p:
 
     pg.goto(f"http://127.0.0.1:{PORT}/index.html")
     pg.wait_for_function("window.SireSync && typeof render==='function' && DB")
-    check(pg.inner_text("#cloudStat").startswith("☁ Nube: iniciar sesión"), "cabecera indica nube sin sesión")
+    check((pg.text_content("#cloudStat") or "").startswith("☁ Nube: iniciar sesión"), "cabecera indica nube sin sesión")
+    check(pg.is_visible("#gate") and not pg.is_visible("header"), "sin sesión: solo se ve la pantalla de acceso, la app queda oculta")
 
     # empresa de prueba local + ZIPs que "entrega SUNAT"
     pg.evaluate("A.mockEmpresa()"); pg.wait_for_function(f"DB.activa==='{RUC}'")
@@ -140,8 +141,10 @@ with sync_playwright() as p:
     pg.evaluate("SireSync.pausa=()=>15")
 
     # --- login
+    pg.fill("#g_mail", "contador@ejemplo.pe"); pg.fill("#g_pw", "clave-web-123"); pg.click("#g_ok")
+    pg.wait_for_selector("#gate", state="detached")
+    check(pg.is_visible("header"), "con sesión: la app se muestra completa")
     pg.evaluate("A.tab('sire')")
-    pg.fill("#sy_mail", "contador@ejemplo.pe"); pg.fill("#sy_pw", "clave-web-123"); pg.click("text=Entrar")
     pg.wait_for_selector("text=Registrar esta empresa en la nube")
     check(True, "login correcto y se ofrece registrar la empresa")
 
@@ -193,6 +196,11 @@ with sync_playwright() as p:
     check("SECRETO-API" not in blob and "CLAVE-SOL-X" not in blob, "ningún secreto viaja a lmi_datos")
 
     pg.screenshot(path="/tmp/sire_tab.png", full_page=True)
+    # --- cerrar sesión devuelve la puerta de acceso
+    pg.evaluate("Cloud.logout()")
+    pg.wait_for_selector("#gate")
+    check(pg.is_visible("#gate") and not pg.is_visible("header"), "al cerrar sesión vuelve la pantalla de acceso")
+
     check(not S["otras_requests"], f"sin peticiones no previstas: {S['otras_requests']}")
     check(not errores, f"sin errores en consola: {errores}")
     br.close()
