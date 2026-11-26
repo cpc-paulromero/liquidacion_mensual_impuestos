@@ -89,6 +89,18 @@ Estado y descarga usan `…/rvierce/gestionprocesosmasivos/web/masivo/{consultae
 Fuente: *Manual de servicios Web API – SIRE Compras v29* y *SIRE Ventas v32* (cpe.sunat.gob.pe).
 Si cierras la página con un ticket pendiente, la lista de tickets permite **Consultar estado** y **Descargar y cargar** después.
 
+## Acceso restringido (página pública)
+
+La web es pública, pero **solo pueden crear cuenta los correos de la tabla `lmi_acceso_permitido`**.
+Un trigger sobre `auth.users` rechaza cualquier otro registro, incluso si alguien llama a la API de Supabase directamente.
+El primer usuario se registra desde la pantalla de login de la app con su correo autorizado y elige su propia contraseña.
+
+Para autorizar otro correo (SQL Editor de Supabase):
+
+```sql
+insert into public.lmi_acceso_permitido (email) values ('otro@correo.com');
+```
+
 ## Seguridad de las credenciales
 
 - `client_secret` y clave SOL se guardan **cifrados en Supabase Vault**; `lmi_credenciales` solo contiene los UUID de esos secretos.
