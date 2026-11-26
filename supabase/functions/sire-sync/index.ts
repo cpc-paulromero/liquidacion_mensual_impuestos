@@ -73,7 +73,7 @@ Deno.serve(async (req) => {
       return data as Ticket;
     };
 
-    const tokenDe = async (empresaId: string): Promise<{ token: string; cred: Credenciales }> => {
+    const tokenDe = async (empresaId: string): Promise<{ token: string; cred: Credenciales; diag: { tokenType: string; expiresIn: number; scope: string } }> => {
       const { data, error } = await admin.rpc('lmi_obtener_credenciales', { p_empresa: empresaId });
       if (error) throw new SunatError(`No se pudieron leer las credenciales: ${error.message}`, 500, 'credenciales');
       const c = Array.isArray(data) ? data[0] : data;
@@ -82,7 +82,7 @@ Deno.serve(async (req) => {
       try {
         const t = await obtenerToken(cred, { separadorUsername: SEPARADOR });
         await admin.rpc('lmi_marcar_credenciales', { p_empresa: empresaId, p_ok: true });
-        return { token: t.accessToken, cred };
+        return { token: t.accessToken, cred, diag: { tokenType: t.tokenType, expiresIn: t.expiresIn, scope: t.scope } };
       } catch (e) {
         await admin.rpc('lmi_marcar_credenciales', { p_empresa: empresaId, p_ok: false, p_error: aviso(e) });
         throw e;
@@ -115,8 +115,8 @@ Deno.serve(async (req) => {
         .order('created_at', { ascending: false }).limit(1);
       if (previos && previos.length) return json({ ok: true, reutilizado: true, ticket: previos[0] });
 
-      const { token } = await tokenDe(empresaId);
-      const numTicket = await solicitarExportacion(token, libro, periodo, {});
+      const { token, diag } = await tokenDe(empresaId);
+      const numTicket = await solicitarExportacion(token, libro, periodo, { diag });
       const { data: t, error } = await admin.from('lmi_tickets').upsert({
         empresa_id: empresaId, libro, periodo, num_ticket: numTicket, estado: 'solicitado',
         solicitado_por: userId, detalle_error: null,

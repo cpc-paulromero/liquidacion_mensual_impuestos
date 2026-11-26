@@ -43,6 +43,8 @@ export interface Opciones {
   /** Entre el RUC y el usuario SOL en `username`. Por defecto ninguno («RUC»+«USUARIO»). */
   separadorUsername?: string;
   timeoutMs?: number;
+  /** Metadatos no sensibles del token, solo para diagnóstico. */
+  diag?: { tokenType?: string; expiresIn?: number; scope?: string };
 }
 
 const f = (o?: Opciones): FetchFn => o?.fetchFn ?? ((u, i) => fetch(u, i));
@@ -79,8 +81,25 @@ export function mensajeDeError(body: unknown, texto: string, status: number): st
     }
   }
   if (typeof b.cod === 'string' && b.cod && !partes.some((p) => p.startsWith(b.cod as string))) partes.unshift(`cod ${b.cod}`);
-  if (!partes.length) partes.push(texto ? texto.slice(0, 200) : `HTTP ${status}`);
+  if (!partes.length) {
+    const t = (texto || '').trim();
+    if (/^<(!doctype|html)/i.test(t)) {
+      const titulo = /<title[^>]*>([^<]{1,120})<\/title>/i.exec(t);
+      partes.push(`respuesta HTML del servidor de SUNAT${titulo ? ' «' + titulo[1].trim() + '»' : ''} (HTTP ${status})`);
+    } else {
+      partes.push(t ? t.slice(0, 200) : `HTTP ${status}`);
+    }
+  }
   return partes.join(' · ');
+}
+
+/** Datos NO sensibles para diagnosticar un rechazo (nunca incluye token ni credenciales). */
+export function diagnostico(res: Response, extra?: Record<string, unknown>): string {
+  const h = (n: string) => res.headers.get(n);
+  const partes: string[] = [`http=${res.status}`];
+  for (const n of ['www-authenticate', 'server', 'x-request-id', 'content-type']) { const v = h(n); if (v) partes.push(`${n}=${v.slice(0, 80)}`); }
+  for (const [k, v] of Object.entries(extra ?? {})) if (v !== undefined && v !== null && v !== '') partes.push(`${k}=${String(v).slice(0, 80)}`);
+  return partes.join('; ');
 }
 
 async function leerJson(res: Response): Promise<{ body: unknown; texto: string }> {
@@ -89,7 +108,7 @@ async function leerJson(res: Response): Promise<{ body: unknown; texto: string }
 }
 
 /** 5.1 Servicio Api Seguridad: obtiene el access_token (OAuth2, grant password). */
-export async function obtenerToken(c: Credenciales, o?: Opciones): Promise<{ accessToken: string; expiresIn: number }> {
+export async function obtenerToken(c: Credenciales, o?: Opciones): Promise<{ accessToken: string; expiresIn: number; tokenType: string; scope: string }> {
   const url = `${API_SEGURIDAD}/v1/clientessol/${encodeURIComponent(c.client_id.trim())}/oauth2/token/`;
   const body = new URLSearchParams({
     grant_type: 'password',
@@ -117,10 +136,10 @@ export async function obtenerToken(c: Credenciales, o?: Opciones): Promise<{ acc
   const j = json as Record<string, unknown> | null;
   const accessToken = j?.access_token;
   if (typeof accessToken !== 'string' || !accessToken) throw new SunatError('SUNAT no devolvió access_token.', 502, 'token');
-  return { accessToken, expiresIn: Number(j?.expires_in) || 0 };
+  return { accessToken, expiresIn: Number(j?.expires_in) || 0, tokenType: String(j?.token_type ?? ''), scope: String(j?.scope ?? '') };
 }
 
-const auth = (t: string) => ({ Authorization: `Bearer ${t}`, Accept: 'application/json' });
+const auth = (t: string) => ({ Authorization: `Bearer ${t}`, Accept: 'application/json', 'Content-Type': 'application/json', 'User-Agent': 'liquidacion-mensual-impuestos/1.0' });
 
 /** Paso 1: solicita la exportación de la propuesta y devuelve el número de ticket. */
 export async function solicitarExportacion(token: string, libro: Libro, periodo: string, o?: Opciones): Promise<string> {
@@ -135,7 +154,7 @@ export async function solicitarExportacion(token: string, libro: Libro, periodo:
     throw new SunatError(`No se pudo contactar al API SIRE: ${(e as Error).message}`, 502, 'solicitar');
   }
   const { body, texto } = await leerJson(res);
-  if (!res.ok) throw new SunatError(`SUNAT no aceptó la solicitud (${mensajeDeError(body, texto, res.status)}).`, res.status === 401 ? 401 : 502, 'solicitar', body);
+  if (!res.ok) throw new SunatError(`SUNAT no aceptó la solicitud (${mensajeDeError(body, texto, res.status)}). [diag: ${diagnostico(res, { token_type: o?.diag?.tokenType, expira_s: o?.diag?.expiresIn, scope: o?.diag?.scope })}]`, res.status === 401 ? 401 : 502, 'solicitar', body);
   const t = (body as Record<string, unknown> | null)?.numTicket;
   if (typeof t !== 'string' && typeof t !== 'number') throw new SunatError('SUNAT no devolvió el número de ticket.', 502, 'solicitar', body);
   return String(t);
@@ -177,7 +196,7 @@ export async function consultarTicket(token: string, libro: Libro, periodo: stri
     throw new SunatError(`No se pudo contactar al API SIRE: ${(e as Error).message}`, 502, 'estado');
   }
   const { body, texto } = await leerJson(res);
-  if (!res.ok) throw new SunatError(`SUNAT no pudo consultar el ticket (${mensajeDeError(body, texto, res.status)}).`, res.status === 401 ? 401 : 502, 'estado', body);
+  if (!res.ok) throw new SunatError(`SUNAT no pudo consultar el ticket (${mensajeDeError(body, texto, res.status)}). [diag: ${diagnostico(res)}]`, res.status === 401 ? 401 : 502, 'estado', body);
   const regs = ((body as Record<string, unknown> | null)?.registros ?? []) as Array<Record<string, unknown>>;
   const r = regs.find((x) => String(x.numTicket) === numTicket) ?? regs[0];
   if (!r) return { encontrado: false, estado: 'en_proceso', codEstadoProceso: null, desEstadoProceso: null, codProceso: null, perTributario: null, archivos: [] };
@@ -223,7 +242,7 @@ export async function descargarArchivo(
   const url = `${API_SIRE}${BASE}/rvierce/gestionprocesosmasivos/web/masivo/archivoreporte?${q}`;
   let res: Response;
   try {
-    res = await f(o)(url, { method: 'GET', headers: { Authorization: `Bearer ${token}` }, signal: signal({ ...o, timeoutMs: o?.timeoutMs ?? 90_000 }) });
+    res = await f(o)(url, { method: 'GET', headers: { Authorization: `Bearer ${token}`, Accept: 'application/json', 'Content-Type': 'application/json', 'User-Agent': 'liquidacion-mensual-impuestos/1.0' }, signal: signal({ ...o, timeoutMs: o?.timeoutMs ?? 90_000 }) });
   } catch (e) {
     throw new SunatError(`No se pudo descargar el archivo: ${(e as Error).message}`, 502, 'descargar');
   }
