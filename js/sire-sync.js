@@ -48,14 +48,14 @@
     if (!Cloud.enabled || !Cloud.logged) return;
     st.cargando = true; st.err = '';
     try {
-      st.empresas = await Cloud.select('sire_empresas', 'select=id,ruc,razon_social,created_by&order=created_at.asc') || [];
-      const m = await Cloud.select('sire_miembros', `select=empresa_id,rol&user_id=eq.${Cloud.user.id}`) || [];
+      st.empresas = await Cloud.select('lmi_empresas', 'select=id,ruc,razon_social,created_by&order=created_at.asc') || [];
+      const m = await Cloud.select('lmi_miembros', `select=empresa_id,rol&user_id=eq.${Cloud.user.id}`) || [];
       st.roles = {}; m.forEach((x) => { st.roles[x.empresa_id] = x.rol; });
       st.cred = null; st.tickets = [];
       const c = cloudEmp();
       if (c) {
-        if (puedeEditar()) { const r = await Cloud.rpc('sire_credenciales_estado', { p_empresa: c.id }); st.cred = Array.isArray(r) ? r[0] : r; }
-        st.tickets = await Cloud.select('sire_tickets', `select=*&empresa_id=eq.${c.id}&order=created_at.desc&limit=30`) || [];
+        if (puedeEditar()) { const r = await Cloud.rpc('lmi_credenciales_estado', { p_empresa: c.id }); st.cred = Array.isArray(r) ? r[0] : r; }
+        st.tickets = await Cloud.select('lmi_tickets', `select=*&empresa_id=eq.${c.id}&order=created_at.desc&limit=30`) || [];
       }
       st.cargado = true;
     } catch (e) { st.err = e.message; console.error(e); }
@@ -65,7 +65,7 @@
   }
   async function cargarTickets() {
     const c = cloudEmp(); if (!c) return;
-    st.tickets = await Cloud.select('sire_tickets', `select=*&empresa_id=eq.${c.id}&order=created_at.desc&limit=30`) || [];
+    st.tickets = await Cloud.select('lmi_tickets', `select=*&empresa_id=eq.${c.id}&order=created_at.desc&limit=30`) || [];
     pintarTickets();
   }
 
@@ -195,7 +195,7 @@
   /* ---------------- empresa y credenciales ---------------- */
   SY.registrarEmpresa = async () => {
     const e = emp(); if (!e) return;
-    try { await Cloud.insert('sire_empresas', { ruc: e.ruc, razon_social: e.nombre }); toast('Empresa registrada en la nube.'); await refrescar(false); }
+    try { await Cloud.insert('lmi_empresas', { ruc: e.ruc, razon_social: e.nombre }); toast('Empresa registrada en la nube.'); await refrescar(false); }
     catch (err) { toast(/duplicate|unique/i.test(err.message) ? 'Esa empresa ya está registrada en tu cuenta.' : err.message, 'err'); }
     render();
   };
@@ -206,7 +206,7 @@
     if (!/^\d{11}$/.test(ruc)) return toast('El RUC debe tener 11 dígitos.', 'err');
     if (!cid || !usr) return toast('client_id y usuario SOL son obligatorios.', 'err');
     try {
-      await Cloud.rpc('sire_guardar_credenciales', { p_empresa: c.id, p_ruc: ruc, p_client_id: cid, p_client_secret: el('sy_cs').value, p_usuario_sol: usr, p_clave_sol: el('sy_pass').value });
+      await Cloud.rpc('lmi_guardar_credenciales', { p_empresa: c.id, p_ruc: ruc, p_client_id: cid, p_client_secret: el('sy_cs').value, p_usuario_sol: usr, p_clave_sol: el('sy_pass').value });
       toast('Credenciales guardadas (cifradas).'); await refrescar(false);
     } catch (e) { toast(e.message, 'err'); }
     render();
@@ -214,7 +214,7 @@
   SY.borrarCreds = async () => {
     const c = cloudEmp(); if (!c) return;
     if (!(await ask('¿Eliminar las credenciales API SUNAT de esta empresa? Se borran también los secretos cifrados.', 'Eliminar'))) return;
-    try { await Cloud.rpc('sire_eliminar_credenciales', { p_empresa: c.id }); toast('Credenciales eliminadas.'); await refrescar(false); } catch (e) { toast(e.message, 'err'); }
+    try { await Cloud.rpc('lmi_eliminar_credenciales', { p_empresa: c.id }); toast('Credenciales eliminadas.'); await refrescar(false); } catch (e) { toast(e.message, 'err'); }
     render();
   };
 
@@ -312,7 +312,7 @@
     if (TAB === 'sire') render();
   };
 
-  /* ---------------- persistencia por empresa (sire_datos) ---------------- */
+  /* ---------------- persistencia por empresa (lmi_datos) ---------------- */
   const pend = new Map(); let timer = null, volando = false;
   // claves: 'cfg' | 'p|AAAA|M' | 'b|AAAA|M'
   function encolar(ruc, clave) { pend.set(ruc + '|' + clave, { ruc, clave }); }
@@ -344,10 +344,10 @@
         if (val === undefined) dels.push({ c, clave: it.clave }); else puts.push({ empresa_id: c.id, clave: it.clave, valor: val });
       }
       let lote = [], peso = 0;
-      const subir = async () => { if (lote.length) { await Cloud.insert('sire_datos', lote, { upsert: true, onConflict: 'empresa_id,clave' }); lote = []; peso = 0; } };
+      const subir = async () => { if (lote.length) { await Cloud.insert('lmi_datos', lote, { upsert: true, onConflict: 'empresa_id,clave' }); lote = []; peso = 0; } };
       for (const r of puts) { const w = JSON.stringify(r.valor).length; if (peso + w > 1.5e6) await subir(); lote.push(r); peso += w; }
       await subir();
-      for (const d of dels) await Cloud.borrar('sire_datos', `empresa_id=eq.${d.c.id}&clave=eq.${encodeURIComponent(d.clave)}`);
+      for (const d of dels) await Cloud.borrar('lmi_datos', `empresa_id=eq.${d.c.id}&clave=eq.${encodeURIComponent(d.clave)}`);
       st.stat = ''; pintarEstado('guardado en la nube');
     } catch (e) {
       console.error(e); items.forEach((it) => pend.set(it.ruc + '|' + it.clave, it));
@@ -366,7 +366,7 @@
   SY.traer = async (ruc) => {
     const c = cloudEmpDe(ruc); if (!c) return;
     try {
-      const filas = await Cloud.select('sire_datos', `select=clave,valor&empresa_id=eq.${c.id}`) || [];
+      const filas = await Cloud.select('lmi_datos', `select=clave,valor&empresa_id=eq.${c.id}`) || [];
       if (DB.empresas[ruc] && !(await ask(`Se reemplazarán la configuración y los períodos de ${ruc} guardados en este navegador por lo que hay en la nube (${filas.length} elementos).`, 'Traer de la nube'))) return;
       st.aplicando = true;
       const cfg = filas.find((f) => f.clave === 'cfg');

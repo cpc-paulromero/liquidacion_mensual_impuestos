@@ -12,5 +12,5 @@ P=(psql -h "$D" -p $PORT -U postgres -v ON_ERROR_STOP=1 -q)
 "${P[@]}" -c "create database t" ; P+=(-d t)
 "${P[@]}" -f "$HERE/rls_stub.sql"
 # En Supabase la extensión ya existe; en el PostgreSQL de prueba el stub de vault la reemplaza.
-grep -v "create extension if not exists supabase_vault" "$MIG"/*.sql | "${P[@]}" -f -
+grep -hv "create extension if not exists supabase_vault" "$MIG"/*.sql | "${P[@]}" -f -
 "${P[@]}" -f "$HERE/rls_test.sql"

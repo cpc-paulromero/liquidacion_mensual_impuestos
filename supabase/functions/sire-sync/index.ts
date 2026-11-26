@@ -3,7 +3,7 @@
 // El navegador no puede llamar al API de SUNAT (CORS) ni debe ver las credenciales,
 // por eso todo pasa por aquí. El flujo de SUNAT es asíncrono, así que se divide en 3 acciones:
 //
-//   1. solicitar  → pide la exportación de la propuesta y guarda el ticket (sire_tickets)
+//   1. solicitar  → pide la exportación de la propuesta y guarda el ticket (lmi_tickets)
 //   2. estado     → consulta a SUNAT el estado del ticket (06 = Terminado)
 //   3. descargar  → baja el ZIP, lo guarda en Storage y devuelve URLs firmadas de corta vida
 //
@@ -60,13 +60,13 @@ Deno.serve(async (req) => {
     // ---------- helpers con acceso a la sesión ----------
     const exigirEditor = async (empresaId: string) => {
       if (!/^[0-9a-f-]{36}$/i.test(empresaId ?? '')) throw new SunatError('empresa_id inválido.', 400, 'validacion');
-      const { data, error } = await userDb.rpc('sire_puede_editar', { p_empresa: empresaId });
+      const { data, error } = await userDb.rpc('lmi_puede_editar', { p_empresa: empresaId });
       if (error) throw new SunatError(`No se pudo validar el permiso: ${error.message}`, 500, 'permiso');
       if (!data) throw new SunatError('No tienes permiso de editor sobre esta empresa.', 403, 'permiso');
     };
 
     const cargarTicket = async (ticketId: string): Promise<Ticket> => {
-      const { data, error } = await userDb.from('sire_tickets').select('*').eq('id', ticketId).maybeSingle();
+      const { data, error } = await userDb.from('lmi_tickets').select('*').eq('id', ticketId).maybeSingle();
       if (error) throw new SunatError(error.message, 500, 'ticket');
       if (!data) throw new SunatError('Ticket no encontrado.', 404, 'ticket');
       await exigirEditor(data.empresa_id);
@@ -74,17 +74,17 @@ Deno.serve(async (req) => {
     };
 
     const tokenDe = async (empresaId: string): Promise<{ token: string; cred: Credenciales }> => {
-      const { data, error } = await admin.rpc('sire_obtener_credenciales', { p_empresa: empresaId });
+      const { data, error } = await admin.rpc('lmi_obtener_credenciales', { p_empresa: empresaId });
       if (error) throw new SunatError(`No se pudieron leer las credenciales: ${error.message}`, 500, 'credenciales');
       const c = Array.isArray(data) ? data[0] : data;
       if (!c) throw new SunatError('Esta empresa aún no tiene credenciales API SUNAT. Configúralas primero.', 409, 'credenciales');
       const cred: Credenciales = { ruc: c.ruc, client_id: c.client_id, client_secret: c.client_secret, usuario_sol: c.usuario_sol, clave_sol: c.clave_sol };
       try {
         const t = await obtenerToken(cred, { separadorUsername: SEPARADOR });
-        await admin.rpc('sire_marcar_credenciales', { p_empresa: empresaId, p_ok: true });
+        await admin.rpc('lmi_marcar_credenciales', { p_empresa: empresaId, p_ok: true });
         return { token: t.accessToken, cred };
       } catch (e) {
-        await admin.rpc('sire_marcar_credenciales', { p_empresa: empresaId, p_ok: false, p_error: aviso(e) });
+        await admin.rpc('lmi_marcar_credenciales', { p_empresa: empresaId, p_ok: false, p_error: aviso(e) });
         throw e;
       }
     };
@@ -109,7 +109,7 @@ Deno.serve(async (req) => {
 
       // Idempotencia: si ya hay un ticket reciente sin terminar para lo mismo, se reutiliza.
       const desde = new Date(Date.now() - VENTANA_REUSO_MS).toISOString();
-      const { data: previos } = await admin.from('sire_tickets').select('*')
+      const { data: previos } = await admin.from('lmi_tickets').select('*')
         .eq('empresa_id', empresaId).eq('libro', libro).eq('periodo', periodo)
         .in('estado', ['solicitado', 'en_proceso']).gte('created_at', desde)
         .order('created_at', { ascending: false }).limit(1);
@@ -117,7 +117,7 @@ Deno.serve(async (req) => {
 
       const { token } = await tokenDe(empresaId);
       const numTicket = await solicitarExportacion(token, libro, periodo, {});
-      const { data: t, error } = await admin.from('sire_tickets').upsert({
+      const { data: t, error } = await admin.from('lmi_tickets').upsert({
         empresa_id: empresaId, libro, periodo, num_ticket: numTicket, estado: 'solicitado',
         solicitado_por: userId, detalle_error: null,
       }, { onConflict: 'empresa_id,libro,num_ticket' }).select('*').single();
@@ -139,7 +139,7 @@ Deno.serve(async (req) => {
         archivos: est.archivos.length ? est.archivos : t.archivos,
         detalle_error: est.estado === 'error' ? (est.desEstadoProceso ?? 'SUNAT procesó el ticket con errores.') : null,
       };
-      const { data, error } = await admin.from('sire_tickets').update(cambios).eq('id', t.id).select('*').single();
+      const { data, error } = await admin.from('lmi_tickets').update(cambios).eq('id', t.id).select('*').single();
       if (error) throw new SunatError(error.message, 500, 'ticket');
       return json({ ok: true, ticket: data });
     }
@@ -173,7 +173,7 @@ Deno.serve(async (req) => {
         if (error) throw new SunatError(`No se pudo guardar ${a.nombre}: ${error.message}`, 500, 'storage');
         guardados.push({ nombre: a.nombre, codTipo: a.codTipo, path });
       }
-      const { data, error } = await admin.from('sire_tickets')
+      const { data, error } = await admin.from('lmi_tickets')
         .update({ estado: 'descargado', archivos: guardados, cod_proceso: t.cod_proceso, detalle_error: null })
         .eq('id', t.id).select('*').single();
       if (error) throw new SunatError(error.message, 500, 'ticket');

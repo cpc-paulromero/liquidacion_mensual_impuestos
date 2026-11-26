@@ -2,7 +2,7 @@
 
 Ejecutar:  python3 tests/ui_smoke.py
 Recorre: login → registrar empresa → guardar credenciales → sincronizar COMPRAS y VENTAS
-(solicitar ticket → estado → descargar → cargar en la app) → persistencia en sire_datos.
+(solicitar ticket → estado → descargar → cargar en la app) → persistencia en lmi_datos.
 """
 import base64, functools, http.server, json, re, socketserver, sys, threading, uuid
 from pathlib import Path
@@ -42,16 +42,16 @@ def on_supabase(route, request):
     body = request.post_data_json if request.post_data else None
     if path == "/auth/v1/token":
         return jr(route, {"access_token": "AT", "refresh_token": "RT", "expires_in": 3600, "user": USER})
-    if path == "/rest/v1/sire_empresas":
+    if path == "/rest/v1/lmi_empresas":
         if request.method == "POST":
             S["empresas"].append(dict(id=str(uuid.uuid4()), ruc=body["ruc"], razon_social=body["razon_social"], created_by=USER["id"]))
             return route.fulfill(status=201, body="", headers={"access-control-allow-origin": "*"})
         return jr(route, S["empresas"])
-    if path == "/rest/v1/sire_miembros":
+    if path == "/rest/v1/lmi_miembros":
         return jr(route, [dict(empresa_id=e["id"], rol="admin") for e in S["empresas"]])
-    if path == "/rest/v1/sire_tickets":
+    if path == "/rest/v1/lmi_tickets":
         return jr(route, list(reversed(S["tickets"])))
-    if path == "/rest/v1/sire_datos":
+    if path == "/rest/v1/lmi_datos":
         if request.method == "POST":
             S["datos_posts"].extend(body if isinstance(body, list) else [body])
             return route.fulfill(status=201, body="", headers={"access-control-allow-origin": "*"})
@@ -59,11 +59,11 @@ def on_supabase(route, request):
             S["datos_dels"].append(url)
             return route.fulfill(status=204, body="", headers={"access-control-allow-origin": "*"})
         return jr(route, [])
-    if path == "/rest/v1/rpc/sire_credenciales_estado":
+    if path == "/rest/v1/rpc/lmi_credenciales_estado":
         return jr(route, [dict(configurado=S["configurado"], ruc=RUC if S["configurado"] else None,
                                client_id="cid-1" if S["configurado"] else None, usuario_sol="MODDATOS" if S["configurado"] else None,
                                ultimo_ok=None, ultimo_error=None)])
-    if path == "/rest/v1/rpc/sire_guardar_credenciales":
+    if path == "/rest/v1/rpc/lmi_guardar_credenciales":
         S["creds_rpc"].append(body); S["configurado"] = True
         return route.fulfill(status=204, body="", headers={"access-control-allow-origin": "*"})
     if path == "/functions/v1/sire-sync":
@@ -187,10 +187,10 @@ with sync_playwright() as p:
     pg.wait_for_function("window.__n=1", timeout=1000)
     pg.wait_for_timeout(2600)
     claves = sorted({d["clave"] for d in S["datos_posts"]})
-    check("cfg" in claves and any(k.startswith("b|2026|") for k in claves), f"persistencia por empresa en sire_datos: {claves}")
+    check("cfg" in claves and any(k.startswith("b|2026|") for k in claves), f"persistencia por empresa en lmi_datos: {claves}")
     check(all(d["empresa_id"] == S["empresas"][0]["id"] for d in S["datos_posts"]), "todo lo guardado va con el empresa_id de la empresa")
     blob = json.dumps(S["datos_posts"])
-    check("SECRETO-API" not in blob and "CLAVE-SOL-X" not in blob, "ningún secreto viaja a sire_datos")
+    check("SECRETO-API" not in blob and "CLAVE-SOL-X" not in blob, "ningún secreto viaja a lmi_datos")
 
     pg.screenshot(path="/tmp/sire_tab.png", full_page=True)
     check(not S["otras_requests"], f"sin peticiones no previstas: {S['otras_requests']}")

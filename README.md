@@ -30,12 +30,12 @@ La carga manual **no se tocó**: las pestañas *Registro de Compras* y *Registro
 ## 1. Poner en marcha Supabase
 
 > Recomendado: un **proyecto Supabase propio** para esta app (aquí viven credenciales API SUNAT y claves SOL).
-> Las tablas llevan el prefijo `sire_` por si se comparte proyecto con otra app (Planillas usa `empresas`).
+> Las tablas llevan el prefijo `lmi_` por si se comparte proyecto con otra app (Planillas usa `empresas`).
 
 1. **Crear el proyecto** en supabase.com y, en *Authentication → Providers*, dejar *Email* activo
    (puedes desactivar «Confirm email» si no quieres validar correos).
 2. **Aplicar el esquema** — una de dos:
-   - *SQL Editor* → pega **todo** `supabase/migrations/20261123190000_sire_multiempresa.sql` → Run.
+   - *SQL Editor* → pega **todo** `supabase/migrations/` (todos los archivos, en orden) → Run.
    - CLI: `supabase link --project-ref <REF> && supabase db push`.
    Se puede ejecutar varias veces sin perder datos.
 3. **Desplegar la Edge Function** (desde ``):
@@ -73,7 +73,7 @@ Navegador                     Edge Function «sire-sync»                    SUN
    │                             lee credenciales (Vault, service_role)
    │                             POST token ─────────────────────────────▶ api-seguridad
    │                             GET exportar propuesta (RCE o RVIE) ────▶ api-sire   → numTicket
-   │◀── ticket (sire_tickets) ── guarda ticket
+   │◀── ticket (lmi_tickets) ── guarda ticket
    │  accion: estado (cada ~6 s) ▶ GET consultaestadotickets ────────────▶ 05 en proceso … 06 Terminado
    │  accion: descargar ───────▶ GET archivoreporte ─────────────────────▶ ZIP
    │◀── URL firmada (10 min) ──── guarda el ZIP en Storage (privado)
@@ -91,12 +91,12 @@ Si cierras la página con un ticket pendiente, la lista de tickets permite **Con
 
 ## Seguridad de las credenciales
 
-- `client_secret` y clave SOL se guardan **cifrados en Supabase Vault**; `sire_credenciales` solo contiene los UUID de esos secretos.
+- `client_secret` y clave SOL se guardan **cifrados en Supabase Vault**; `lmi_credenciales` solo contiene los UUID de esos secretos.
 - La tabla tiene RLS activado, sin políticas y sin privilegios para `anon`/`authenticated`: **ni el dueño puede leerla** desde el navegador.
-- Se escriben con la función `sire_guardar_credenciales` (solo *admin* de la empresa). Un secreto en blanco conserva el anterior.
-- Solo la Edge Function, con `service_role`, ejecuta `sire_obtener_credenciales` (descifra). Nunca se registran ni se devuelven secretos.
-- Todas las demás tablas (`sire_empresas`, `sire_miembros`, `sire_datos`, `sire_tickets`) y el bucket `sire-archivos` tienen RLS por membresía de empresa (admin / editor / lector).
-- Compartir una empresa: `select sire_agregar_miembro('<empresa_id>', 'correo@…', 'editor')` (el usuario debe tener cuenta).
+- Se escriben con la función `lmi_guardar_credenciales` (solo *admin* de la empresa). Un secreto en blanco conserva el anterior.
+- Solo la Edge Function, con `service_role`, ejecuta `lmi_obtener_credenciales` (descifra). Nunca se registran ni se devuelven secretos.
+- Todas las demás tablas (`lmi_empresas`, `lmi_miembros`, `lmi_datos`, `lmi_tickets`) y el bucket `sire-archivos` tienen RLS por membresía de empresa (admin / editor / lector).
+- Compartir una empresa: `select lmi_agregar_miembro('<empresa_id>', 'correo@…', 'editor')` (el usuario debe tener cuenta).
 
 ## Pruebas
 
