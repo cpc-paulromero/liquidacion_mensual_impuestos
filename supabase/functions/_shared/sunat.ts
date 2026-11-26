@@ -43,8 +43,6 @@ export interface Opciones {
   /** Entre el RUC y el usuario SOL en `username`. Por defecto ninguno («RUC»+«USUARIO»). */
   separadorUsername?: string;
   timeoutMs?: number;
-  /** Metadatos no sensibles del token, solo para diagnóstico. */
-  diag?: { tokenType?: string; expiresIn?: number; scope?: string };
 }
 
 const f = (o?: Opciones): FetchFn => o?.fetchFn ?? ((u, i) => fetch(u, i));
@@ -91,15 +89,6 @@ export function mensajeDeError(body: unknown, texto: string, status: number): st
     }
   }
   return partes.join(' · ');
-}
-
-/** Datos NO sensibles para diagnosticar un rechazo (nunca incluye token ni credenciales). */
-export function diagnostico(res: Response, extra?: Record<string, unknown>): string {
-  const h = (n: string) => res.headers.get(n);
-  const partes: string[] = [`http=${res.status}`];
-  for (const n of ['www-authenticate', 'server', 'x-request-id', 'content-type']) { const v = h(n); if (v) partes.push(`${n}=${v.slice(0, 80)}`); }
-  for (const [k, v] of Object.entries(extra ?? {})) if (v !== undefined && v !== null && v !== '') partes.push(`${k}=${String(v).slice(0, 80)}`);
-  return partes.join('; ');
 }
 
 async function leerJson(res: Response): Promise<{ body: unknown; texto: string }> {
@@ -154,7 +143,7 @@ export async function solicitarExportacion(token: string, libro: Libro, periodo:
     throw new SunatError(`No se pudo contactar al API SIRE: ${(e as Error).message}`, 502, 'solicitar');
   }
   const { body, texto } = await leerJson(res);
-  if (!res.ok) throw new SunatError(`SUNAT no aceptó la solicitud (${mensajeDeError(body, texto, res.status)}). [diag: ${diagnostico(res, { token_type: o?.diag?.tokenType, expira_s: o?.diag?.expiresIn, scope: o?.diag?.scope })}]`, res.status === 401 ? 401 : 502, 'solicitar', body);
+  if (!res.ok) throw new SunatError(`SUNAT no aceptó la solicitud (${mensajeDeError(body, texto, res.status)}).`, res.status === 401 ? 401 : 502, 'solicitar', body);
   const t = (body as Record<string, unknown> | null)?.numTicket;
   if (typeof t !== 'string' && typeof t !== 'number') throw new SunatError('SUNAT no devolvió el número de ticket.', 502, 'solicitar', body);
   return String(t);
@@ -196,7 +185,7 @@ export async function consultarTicket(token: string, libro: Libro, periodo: stri
     throw new SunatError(`No se pudo contactar al API SIRE: ${(e as Error).message}`, 502, 'estado');
   }
   const { body, texto } = await leerJson(res);
-  if (!res.ok) throw new SunatError(`SUNAT no pudo consultar el ticket (${mensajeDeError(body, texto, res.status)}). [diag: ${diagnostico(res)}]`, res.status === 401 ? 401 : 502, 'estado', body);
+  if (!res.ok) throw new SunatError(`SUNAT no pudo consultar el ticket (${mensajeDeError(body, texto, res.status)}).`, res.status === 401 ? 401 : 502, 'estado', body);
   const regs = ((body as Record<string, unknown> | null)?.registros ?? []) as Array<Record<string, unknown>>;
   const r = regs.find((x) => String(x.numTicket) === numTicket) ?? regs[0];
   if (!r) return { encontrado: false, estado: 'en_proceso', codEstadoProceso: null, desEstadoProceso: null, codProceso: null, perTributario: null, archivos: [] };
@@ -259,28 +248,4 @@ export async function descargarArchivo(
     throw new SunatError(msg, 502, 'descargar');
   }
   return bytes;
-}
-
-/** Sondeo de diagnóstico tras un 401: variantes de envío del token (solo estados HTTP y nombres de cabeceras, sin datos sensibles). */
-export async function sondear(token: string, libro: Libro, periodo: string, o?: Opciones): Promise<string> {
-  const urlExp = libro === 'compras'
-    ? `${API_SIRE}${BASE}/rce/propuesta/web/propuesta/${periodo}/exportacioncomprobantepropuesta?codTipoArchivo=0&codOrigenEnvio=2`
-    : `${API_SIRE}${BASE}/rvie/propuesta/web/propuesta/${periodo}/exportapropuesta?codTipoArchivo=0`;
-  const pruebas: Array<[string, string, Record<string, string>]> = [
-    ['bearer_minimo', urlExp, { Authorization: `Bearer ${token}` }],
-    ['token_sin_bearer', urlExp, { Authorization: token, Accept: 'application/json' }],
-    ['sin_token', urlExp, { Accept: 'application/json' }],
-    ['ruta_inexistente', `${API_SIRE}${BASE}/zzz`, { Authorization: `Bearer ${token}` }],
-  ];
-  const out: string[] = [];
-  for (const [n, url, headers] of pruebas) {
-    try {
-      const res = await f(o)(url, { method: 'GET', headers, signal: signal({ ...o, timeoutMs: 15_000 }) });
-      const t = (await res.text()).slice(0, 400);
-      const ti = /<title[^>]*>([^<]{1,60})<\/title>/i.exec(t);
-      out.push(`${n}=${res.status}${ti ? ' «' + ti[1].trim() + '»' : ''}`);
-      if (n === 'bearer_minimo') out.push(`cabeceras=${[...res.headers.keys()].join(',').slice(0, 200)}`);
-    } catch { out.push(`${n}=error`); }
-  }
-  return out.join('; ');
 }
